@@ -42,3 +42,18 @@ new adapter types in the feature.
 
 Or add only ``-a ADAPTER...`` as an alias for ``-g ^ADAPTER`` and
 ``-a ...ADAPTER`` as an alias for ``-a ADAPTER``.
+
+
+Paired-end trimming
+-------------------
+
+* Add -A, -B, -G parameters
+* Use a paired-end read merger, then remove adapters with -a and -g
+* Should minimum overlap be sum of the two overlaps in each read?
+
+
+Single-letter command-line options
+----------------------------------
+
+Remaining characters: All uppercase letters except M, N, O
+Lowercase letters: i, j, k, l, s, w

@@ -354,7 +354,7 @@ def test_unmatched_read_names():
 		cutadapt.main('-a XX --paired-output out.fastq'.split() + [datapath('paired-swapped.1.fastq'), datapath('paired.2.fastq')])
 
 
-def test_paired_end():
+def test_paired_end_legacy():
 	'''--paired-output'''
 	pairedtmp = dpath("paired-tmp.fastq")
 	# the -m 14 filters out one read, which should then also be filtered out in the second output file
@@ -432,3 +432,12 @@ def test_explicit_format_with_paired():
 def test_no_trimming():
 	# make sure that this doesn't divide by zero
 	cutadapt.main(['-a', 'XXXXX', '-o', '/dev/null', '-p', '/dev/null', datapath('paired.1.fastq'), datapath('paired.2.fastq')])
+
+
+def test_paired_end():
+	'''--paired-output'''
+	pairedtmp = dpath("paired-tmp.fastq")
+	run(['-a', 'TTAGACATAT', '-A', 'CAGTGGAGTA', '-m', '14', '-p', pairedtmp], 'paired.m14.1.fastq', 'paired.1.fastq', 'paired.2.fastq')
+	assert files_equal(dpath(os.path.join('cut', 'paired.m14.2.fastq')), pairedtmp)
+	os.remove(pairedtmp)
+

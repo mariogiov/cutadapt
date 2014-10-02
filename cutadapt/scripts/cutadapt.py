@@ -497,8 +497,6 @@ def get_option_parser():
 	group.add_option("-a", "--adapter", action="append", metavar="ADAPTER", dest="adapters", default=[],
 		help="Sequence of an adapter that was ligated to the 3' end. The "
 			"adapter itself and anything that follows is trimmed.")
-	group.add_option("-b", "--anywhere", action="append", metavar="ADAPTER", default=[],
-		help="Sequence of an adapter that was ligated to the 5' or 3' end. If the adapter is found within the read or overlapping the 3' end of the read, the behavior is the same as for the -a option. If the adapter overlaps the 5' end (beginning of the read), the initial portion of the read matching the adapter is trimmed, but anything that follows is kept.")
 	group.add_option("-g", "--front", action="append", metavar="ADAPTER", default=[],
 		help="Sequence of an adapter that was ligated to the 5' end. If the "
 		"adapter sequence starts with the character '^', the adapter is "
@@ -507,6 +505,13 @@ def get_option_parser():
 		"appear partially at the 5' end, or it may occur within the read. If it is "
 		"found within a read, the sequence preceding the adapter is also trimmed. "
 		"In all cases, the adapter itself is trimmed.")
+	group.add_option("-b", "--anywhere", action="append", metavar="ADAPTER", default=[],
+		help="Sequence of an adapter that was ligated to the 5' or 3' end. If "
+			"the adapter is found within the read or overlapping the 3' end of "
+			"the read, the behavior is the same as for the -a option. If the "
+			"adapter overlaps the 5' end (beginning of the read), the initial "
+			"portion of the read matching the adapter is trimmed, but anything "
+			"that follows is kept.")
 	group.add_option("-e", "--error-rate", type=float, default=0.1,
 		help="Maximum allowed error rate (no. of errors divided by the length of the matching region) (default: %default)")
 	group.add_option("--no-indels", action='store_false', dest='indels', default=True,
@@ -560,8 +565,6 @@ def get_option_parser():
 			"output and send the summary report to standard output. "
 			"The format is FASTQ if qualities are available, FASTA "
 			"otherwise. (default: standard output)")
-	group.add_option("-p", "--paired-output", default=None, metavar="FILE",
-		help="Write reads from the paired-end input to FILE.")
 	group.add_option("--info-file", metavar="FILE",
 		help="Write information about each read and its adapter matches into FILE. "
 			"See the documentation for the file format.")
@@ -580,12 +583,6 @@ def get_option_parser():
 		help="Write reads that do not contain the adapter to FILE, instead "
 			"of writing them to the regular output file. (Default: output "
 			"to same file as trimmed reads.)")
-	group.add_option("--untrimmed-paired-output", default=None, metavar="FILE",
-		help="Write the second read in a pair to this FILE when no adapter "
-			"was found in the first read. Use this option together with "
-			"--untrimmed-output when trimming paired-end reads. (Default: output "
-			"to same file as trimmed reads.)")
-	group.add_option
 	parser.add_option_group(group)
 
 	group = OptionGroup(parser, "Additional modifications to the reads")
@@ -637,6 +634,23 @@ def get_option_parser():
 		"by default when -c/--colorspace is also enabled. Use the above option "
 		"to disable it.")
 	parser.set_defaults(zero_cap=None)
+	parser.add_option_group(group)
+
+	group = OptionGroup(parser, "Paired-end options.", description="The "
+		"-A/-B/-G options work like their -a/-b/-g counterparts.")
+	group.add_option("-A", "--pe-adapter", default=[], action='append', metavar='ADAPTER',
+		help="3' adapter to be removed from the second read in a pair.")
+	group.add_option("-G", "--pe-front", default=[], action='append', metavar='ADAPTER',
+		help="5' adapter to be removed from the second read in a pair.")
+	group.add_option("-B", "--pe-anywhere", default=[], action='append', metavar='ADAPTER',
+		help="5'/3 adapter to be removed from the second read in a pair.")
+	group.add_option("-p", "--paired-output", default=None, metavar="FILE",
+		help="Write reads from the paired-end input to FILE.")
+	group.add_option("--untrimmed-paired-output", default=None, metavar="FILE",
+		help="Write the second read in a pair to this FILE when no adapter "
+			"was found in the first read. Use this option together with "
+			"--untrimmed-output when trimming paired-end reads. (Default: output "
+			"to same file as trimmed reads.)")
 	parser.add_option_group(group)
 
 	return parser

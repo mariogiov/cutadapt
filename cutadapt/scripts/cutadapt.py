@@ -56,15 +56,14 @@ Use "cutadapt --help" to see all command-line options.
 
 from __future__ import print_function, division, absolute_import
 
+# Print a helpful error message if the extension modules cannot be imported.
+from cutadapt import check_importability
+check_importability()
+
 import sys
 import time
 import errno
 from optparse import OptionParser, OptionGroup, SUPPRESS_HELP
-
-from cutadapt import check_importability
-
-# Print a helpful error message if the extension modules cannot be imported.
-check_importability()
 
 from cutadapt import seqio, __version__
 from cutadapt.xopen import xopen

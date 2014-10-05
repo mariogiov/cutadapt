@@ -637,11 +637,11 @@ def get_option_parser():
 
 	group = OptionGroup(parser, "Paired-end options.", description="The "
 		"-A/-B/-G options work like their -a/-b/-g counterparts.")
-	group.add_option("-A", "--pe-adapter", default=[], action='append', metavar='ADAPTER',
+	group.add_option("-A", dest='adapters2', default=[], action='append', metavar='ADAPTER',
 		help="3' adapter to be removed from the second read in a pair.")
-	group.add_option("-G", "--pe-front", default=[], action='append', metavar='ADAPTER',
+	group.add_option("-G", dest='front2', default=[], action='append', metavar='ADAPTER',
 		help="5' adapter to be removed from the second read in a pair.")
-	group.add_option("-B", "--pe-anywhere", default=[], action='append', metavar='ADAPTER',
+	group.add_option("-B", dest='anywhere2', default=[], action='append', metavar='ADAPTER',
 		help="5'/3 adapter to be removed from the second read in a pair.")
 	group.add_option("-p", "--paired-output", default=None, metavar="FILE",
 		help="Write reads from the paired-end input to FILE.")
@@ -660,8 +660,8 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 	Main function that evaluates command-line parameters and iterates
 	over all reads.
 
-	default_outfile is the default output file to which trimmed reads
-	are sent. It can be overriden by using the '-o' parameter.
+	default_outfile is the file to which trimmed reads are sent if the ``-o``
+	parameter is not used.
 	"""
 	parser = get_option_parser()
 	if cmdlineargs is None:
@@ -675,34 +675,41 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 
 	input_filename = args[0]
 
-	# If a second file name was given, then we either have single-end reads
-	# provided as a pair of .fasta/.qual files or we have paired-end reads.
-	quality_filename = None
-	input_paired_filename = None
-	if len(args) == 2:
-		if args[1].endswith('.qual'):
+	# There are - unfortunately - three different 'modes' now:
+	# - Single-read trimming (neither -p nor -A/-B/-G given)
+	# - Legacy paired-end trimming (-p given, but not -A/-B/-G)
+	# - New paired-end trimming (-p and -A/-B/-G given)
+	paired = (options.paired_output or options.adapters2 or options.front2 or 
+		options.anywhere2)
+
+	if paired and len(args) == 1:
+		parser.error("When paired-end trimming is enabled via -A/-B/-G or -p, "
+			"two input files are required.")
+	if paired and not options.paired_output:
+		parser.error("When paired-end trimming is enabled via -A/-B/-G, "
+			"a second output file needs to be specified via -p (--paired-output).")
+
+	if paired:
+		input_paired_filename = args[1]
+	else:
+		if len(args) == 2:
 			quality_filename = args[1]
 		else:
-			input_paired_filename = args[1]
-			if not options.paired_output:
-				parser.error('You must use --paired-output when trimming paired-end reads.')
+			quality_filename = None
 
-	if len(args) == 1 and options.paired_output:
-		parser.error("You specified a --paired-output file, but gave only one input file.")
-	if options.paired_output and bool(options.untrimmed_output) != bool(options.untrimmed_paired_output):
+	if paired and bool(options.untrimmed_output) != bool(options.untrimmed_paired_output):
 		parser.error("When trimming paired-end reads, you must use either none "
 			"or both of the --untrimmed-output/--untrimmed-paired-output options.")
-	if options.untrimmed_paired_output and not options.paired_output:
+	if not paired and options.untrimmed_paired_output:
 		parser.error("Option --untrimmed-paired-output can only be used when "
-			"trimming paired-end reads (with option --paired-output).")
-	if input_filename.endswith('.qual') and quality_filename.endswith('fasta'):
+			"trimming paired-end reads (with option -p).")
+	if not paired and input_filename.endswith('.qual') and quality_filename is not None and quality_filename.endswith('fasta'):
 		parser.error("FASTA and QUAL file given, but the FASTA file must be first.")
 
 	if options.format is not None and options.format.lower() not in ['fasta', 'fastq', 'sra-fastq']:
 		parser.error("The input file format must be either 'fasta', 'fastq' or 'sra-fastq' (not '{0}').".format(options.format))
 
-	# TODO should this really be an error?
-	if options.format is not None and quality_filename is not None:
+	if not paired and options.format is not None and quality_filename is not None:
 		parser.error("If a pair of .fasta and .qual files is given, the -f/--format parameter cannot be used.")
 
 	trimmed_outfile, untrimmed_outfile = trimmed_and_untrimmed_files(
@@ -764,10 +771,10 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 	if options.wildcard_file is not None:
 		options.wildcard_file = xopen(options.wildcard_file, 'w')
 
-	adapters = []
 	ADAPTER_CLASS = ColorspaceAdapter if options.colorspace else Adapter
-
 	try:
+		# TODO refactor, code duplicated
+		adapters = []
 		for name, seq, where in gather_adapters(options.adapters, options.anywhere, options.front):
 			if not seq:
 				parser.error("The adapter sequence is empty")
@@ -777,6 +784,16 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 				options.overlap, options.match_read_wildcards,
 				options.match_adapter_wildcards, name=name, indels=options.indels)
 			adapters.append(adapter)
+		adapters2 = []
+		for name, seq, where in gather_adapters(options.adapters2, options.anywhere2, options.front2):
+			if not seq:
+				parser.error("The adapter sequence is empty")
+			if not options.indels and where != PREFIX:
+				parser.error("Not allowing indels is currently supported only for anchored 5' adapters.")
+			adapter = ADAPTER_CLASS(seq, where, options.error_rate,
+				options.overlap, options.match_read_wildcards,
+				options.match_adapter_wildcards, name=name, indels=options.indels)
+			adapters2.append(adapter)
 	except IOError as e:
 		if e.errno == errno.ENOENT:
 			print("Error:", e, file=sys.stderr)
@@ -785,14 +802,18 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 
 	start_time = time.clock()
 
-	if input_paired_filename:
-		reader = seqio.PairedSequenceReader(input_filename, input_paired_filename,
-			colorspace=options.colorspace, fileformat=options.format)
-	else:
-		reader = read_sequences(input_filename, quality_filename,
-			colorspace=options.colorspace, fileformat=options.format)
+	try:
+		if paired:
+			reader = seqio.PairedSequenceReader(input_filename, input_paired_filename,
+				colorspace=options.colorspace, fileformat=options.format)
+		else:
+			reader = read_sequences(input_filename, quality_filename,
+				colorspace=options.colorspace, fileformat=options.format)
+	except seqio.UnknownFileType as e:
+		print("Error:", e, file=sys.stderr)
+		sys.exit(1)
 
-	# build up list of modifiers
+	# Build list of modifiers.
 	modifiers = []
 	if not adapters and options.quality_cutoff == 0 and options.cut == 0:
 		parser.error("You need to provide at least one adapter sequence.")
@@ -823,7 +844,7 @@ def main(cmdlineargs=None, default_outfile=sys.stdout):
 		modifiers.append(PrimerTrimmer)
 
 	try:
-		if input_paired_filename:
+		if paired:
 			stats = process_paired_reads(reader, modifiers, read_writer)
 		else:
 			stats = process_single_reads(reader, modifiers, read_writer)

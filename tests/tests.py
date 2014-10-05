@@ -383,17 +383,15 @@ def test_no_trimming():
 
 def test_paired_end():
 	'''--paired-output'''
-	assert False
-	pairedtmp1 = dpath("paired-tmp.1.fastq")
-	pairedtmp2 = dpath("paired-tmp.2.fastq")
-
-	# TODO: actual: paired.1.fastq paired.2.fastq
-	# expected: paired.1.fastq paired.2.fastq
-	
-	run(['-a', 'TTAGACATAT', '-A', 'CAGTGGAGTA', '-m', '14',
-	  '-o', pairedtmp1, '-p', pairedtmp2], 'paired.m14.1.fastq', 'paired.1.fastq', 'paired.2.fastq')
-
-	assert files_equal(cutpath('paired.1.fastq'), pairedtmp1)
-	assert files_equal(cutpath('paired.2.fastq'), pairedtmp2)
-	os.remove(pairedtmp)
-
+	with temporary_path("paired.1.fastq") as p1:
+		with temporary_path("paired.2.fastq") as p2:
+			params = [
+				'-a', 'TTAGACATAT',
+				'-A', 'CAGTGGAGTA',
+				'-m', '14',
+				'-o', p1, '-p', p2,
+				datapath('paired.1.fastq'), datapath('paired.2.fastq') 
+			]
+			assert cutadapt.main(params) is None
+			assert files_equal(cutpath('paired.1.fastq'), p1)
+			assert files_equal(cutpath('paired.2.fastq'), p2)

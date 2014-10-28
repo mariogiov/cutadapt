@@ -217,7 +217,7 @@ class RepeatedAdapterCutter(object):
 		best = None
 		for adapter in self.adapters:
 			match = adapter.match_to(read)
-			if match is None:
+			if match is None or match.rstart > 6:
 				continue
 
 			# the no. of matches determines which adapter fits best
